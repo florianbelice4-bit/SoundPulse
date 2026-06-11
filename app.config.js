@@ -28,7 +28,14 @@ module.exports = {
     android: {
       ...appJson.expo.android,
       package: "com.soundpulseapp.android",
-      versionCode: 2,
+      // versionCode is managed remotely by EAS (cli.appVersionSource: "remote"
+      // + production autoIncrement), so it is intentionally not pinned here.
+      // Keep cloud/adb backups from capturing app data (incl. the AsyncStorage
+      // auth-token fallback path).
+      allowBackup: false,
+      // We don't use the advertising ID; block it so SDKs can't pull it in and
+      // to keep the Play Data Safety form accurate.
+      blockedPermissions: ["com.google.android.gms.permission.AD_ID"],
       permissions: [
         "INTERNET",
         "com.android.vending.BILLING",
