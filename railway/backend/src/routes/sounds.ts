@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import express, { type Request, type Response } from "express";
 
 import { authenticateUser } from "../middleware/authenticateUser.js";
@@ -14,6 +15,7 @@ import {
   releaseGenerationSlot,
   reserveGenerationSlot,
 } from "../services/generationLimits.js";
+import { moderatePrompt } from "../services/promptModeration.js";
 import { uploadGeneratedSoundscape } from "../services/soundscapeStorage.js";
 
 export const soundsRouter = express.Router();
@@ -22,6 +24,7 @@ const DEFAULT_DURATION_SEC = 15;
 const MIN_DURATION_SEC = 0.5;
 const MAX_DURATION_SEC = 30;
 const MAX_PROMPT_LEN = 500;
+const GENERIC_GENERATION_ERROR = "Sound generation failed. Please try again.";
 
 function clampDuration(raw: unknown): number {
   const n = typeof raw === "number" ? raw : Number.parseFloat(String(raw ?? ""));
@@ -60,6 +63,19 @@ soundsRouter.post(
       return res.status(400).json({ error: `prompt must be at most ${MAX_PROMPT_LEN} characters` });
     }
 
+    const moderation = moderatePrompt(prompt);
+    if (!moderation.allowed) {
+      // Log the category for abuse monitoring; never log the prompt itself (PII).
+      Sentry.captureMessage("prompt_moderation_blocked", {
+        level: "warning",
+        tags: { feature: "generation", moderation_category: moderation.category },
+      });
+      return res.status(400).json({
+        error: "CONTENT_MODERATION_BLOCKED",
+        message: "This prompt isn't allowed. Please try a different description.",
+      });
+    }
+
     const durationSeconds = clampDuration(body.duration_seconds);
 
     await reserveGenerationSlot(authUserId);
@@ -89,15 +105,23 @@ soundsRouter.post(
       return res.status(status).json({ error: err.code });
     }
     if (err instanceof ElevenLabsConfigError) {
-      return res.status(503).json({ error: err.message });
+      // Misconfiguration is ours, not the user's — log detail, return generic.
+      console.error("[sounds/generate] config:", err.message);
+      Sentry.captureException(err, { tags: { feature: "generation" } });
+      return res.status(503).json({ error: "GENERATION_UNAVAILABLE", message: GENERIC_GENERATION_ERROR });
     }
     if (err instanceof ElevenLabsGenerationError) {
+      // Upstream detail can leak quota/API hints — log it, send a clean message.
+      console.error("[sounds/generate] upstream:", err.status, err.message);
+      Sentry.captureException(err, { tags: { feature: "generation", upstream_status: String(err.status) } });
+      if (err.status === 429) {
+        return res.status(429).json({ error: "RATE_LIMIT_EXCEEDED", message: GENERIC_GENERATION_ERROR });
+      }
       const status = err.status >= 400 && err.status < 600 ? err.status : 502;
-      return res.status(status).json({ error: err.message });
+      return res.status(status).json({ error: "GENERATION_FAILED", message: GENERIC_GENERATION_ERROR });
     }
     console.error("[sounds/generate]", err);
-    return res.status(500).json({
-      error: err instanceof Error ? err.message : "Sound generation failed",
-    });
+    Sentry.captureException(err, { tags: { feature: "generation" } });
+    return res.status(500).json({ error: "GENERATION_FAILED", message: GENERIC_GENERATION_ERROR });
   }
 });
