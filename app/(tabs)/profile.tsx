@@ -731,7 +731,9 @@ export default function ProfileScreen() {
                   <Ionicons name="infinite" size={18} color={theme.colors.sky} />
                 </View>
                 <Text style={styles.statValue}>{usageLimitLabel}</Text>
-                <Text style={styles.statLabel}>{isPremium ? `${planLabel} monthly limit` : "Free monthly limit"}</Text>
+                <Text style={styles.statLabel}>
+                  {isPremium ? `${planLabel} monthly limit` : "AI generations · upgrade to unlock"}
+                </Text>
               </View>
             </View>
 

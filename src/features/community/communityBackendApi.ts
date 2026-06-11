@@ -1,4 +1,5 @@
 import { ensureBackendUrl, backendJsonHeaders } from "@/src/lib/backend";
+import { fetchWithTimeout, RequestTimeoutError } from "@/src/lib/fetchWithTimeout";
 import { supabase } from "@/src/lib/supabase";
 
 export class CommunityBackendError extends Error {
@@ -42,11 +43,24 @@ async function getAccessToken(): Promise<string> {
 async function postCommunity<T>(path: string, body: unknown): Promise<T> {
   const token = await getAccessToken();
   const baseUrl = ensureBackendUrl();
-  const res = await fetch(`${baseUrl}/v1/community/${path}`, {
-    method: "POST",
-    headers: backendJsonHeaders(token),
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${baseUrl}/v1/community/${path}`, {
+      method: "POST",
+      headers: backendJsonHeaders(token),
+      body: JSON.stringify(body),
+      timeoutMs: 30000,
+    });
+  } catch (error) {
+    if (error instanceof RequestTimeoutError) {
+      throw new CommunityBackendError(error.message, 408, "TIMEOUT");
+    }
+    throw new CommunityBackendError(
+      "Couldn't reach the server. Check your connection and try again.",
+      0,
+      "NETWORK"
+    );
+  }
 
   const text = await res.text();
   let parsed: { error?: string; message?: string; pulsed?: boolean; saved?: boolean } = {};

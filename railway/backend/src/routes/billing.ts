@@ -4,6 +4,7 @@ import { authenticateUser } from "../middleware/authenticateUser.js";
 import { billingRestoreRateLimit, billingVerifyRateLimit } from "../middleware/userRateLimit.js";
 import {
   PlayBillingConfigError,
+  PlayPurchaseOwnershipError,
   PlayPurchaseVerificationError,
   verifyAndGrantPlayPurchase,
 } from "../services/playBilling.js";
@@ -85,6 +86,10 @@ billingRouter.post("/play/verify", authenticateUser, billingVerifyRateLimit, asy
   } catch (err) {
     if (err instanceof PlayBillingConfigError) {
       sendBillingError(res, 500, "CONFIG_ERROR", err.message);
+      return;
+    }
+    if (err instanceof PlayPurchaseOwnershipError) {
+      sendBillingError(res, 403, "TOKEN_ALREADY_BOUND", err.message);
       return;
     }
     if (err instanceof PlayPurchaseVerificationError) {

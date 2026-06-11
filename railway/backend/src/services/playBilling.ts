@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import { google } from "googleapis";
 import type { androidpublisher_v3 } from "googleapis";
 
@@ -14,6 +15,14 @@ export class PlayBillingConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "PlayBillingConfigError";
+  }
+}
+
+/** A purchase token already belongs to a different SoundPulse account. */
+export class PlayPurchaseOwnershipError extends Error {
+  constructor(message = "This purchase is already linked to another account.") {
+    super(message);
+    this.name = "PlayPurchaseOwnershipError";
   }
 }
 
@@ -232,6 +241,27 @@ export async function applyVerifiedTierToProfile(
   tier: PlanTier,
   purchase: VerifiedPurchaseDetails
 ): Promise<void> {
+  // Bind the purchase token to its first account. A token already owned by a
+  // different user must NOT be reassigned — otherwise one subscription could be
+  // moved/hijacked across accounts by replaying the token.
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from("subscriptions")
+    .select("id, user_id")
+    .eq("purchase_token", purchase.purchaseToken)
+    .maybeSingle();
+
+  if (lookupError) {
+    throw new Error(`Failed to look up subscription: ${lookupError.message}`);
+  }
+
+  if (existing && existing.user_id && existing.user_id !== userId) {
+    Sentry.captureMessage("subscription_hijack_attempt", {
+      level: "warning",
+      tags: { feature: "billing", product_id: purchase.productId },
+    });
+    throw new PlayPurchaseOwnershipError();
+  }
+
   const { error } = await supabaseAdmin
     .from("profiles")
     .update({
@@ -257,16 +287,6 @@ export async function applyVerifiedTierToProfile(
     auto_renewing: purchase.autoRenewing,
     updated_at: new Date().toISOString(),
   };
-
-  const { data: existing, error: lookupError } = await supabaseAdmin
-    .from("subscriptions")
-    .select("id")
-    .eq("purchase_token", purchase.purchaseToken)
-    .maybeSingle();
-
-  if (lookupError) {
-    throw new Error(`Failed to look up subscription: ${lookupError.message}`);
-  }
 
   const write = existing?.id
     ? supabaseAdmin.from("subscriptions").update(row).eq("id", existing.id)
@@ -387,6 +407,11 @@ export async function verifyAndGrantPlayPurchase(
     await applyVerifiedTierToProfile(userId, tier, verified);
     return { ...verified, tier };
   } catch (err) {
+    // A token bound to another account is a VALID purchase applied to the wrong
+    // user — never refund/revoke it. Surface the conflict as-is.
+    if (err instanceof PlayPurchaseOwnershipError) {
+      throw err;
+    }
     const refunded = await rejectUnverifiedPlayPurchase(productId, token);
     if (err instanceof PlayPurchaseVerificationError) {
       throw new PlayPurchaseVerificationError(err.message, refunded);

@@ -8,6 +8,58 @@ import {
   sanitizeSoundTitle,
 } from "./communityValidation.js";
 import { userCanSubmitReport, userHasPremium } from "./premiumAccess.js";
+import { moderatePrompt } from "./promptModeration.js";
+
+/** Public URL prefix for the user's own generated soundscapes. */
+function ownedSoundscapePrefix(): string {
+  const base = (process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  return `${base}/storage/v1/object/public/soundscapes/`;
+}
+
+/**
+ * Reject anything that isn't an audio file the user generated: it must live in
+ * this project's `soundscapes` bucket AND have a matching generated_sounds row
+ * owned by the user. Blocks sharing external/copyrighted/arbitrary URLs.
+ */
+async function assertOwnedSoundscape(userId: string, audioUrl: string): Promise<void> {
+  if (!audioUrl.startsWith(ownedSoundscapePrefix())) {
+    throw new CommunityWriteError(
+      "INVALID_AUDIO_URL",
+      "You can only share sounds you generated in SoundPulse.",
+      400
+    );
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("generated_sounds")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("url", audioUrl)
+    .maybeSingle();
+
+  if (error) {
+    throw new CommunityWriteError("COMMUNITY_LOOKUP_FAILED", "Could not verify sound ownership.", 500);
+  }
+  if (!data) {
+    throw new CommunityWriteError(
+      "INVALID_AUDIO_URL",
+      "You can only share sounds you generated in SoundPulse.",
+      400
+    );
+  }
+}
+
+/** Block clearly-prohibited text before it reaches Discover. */
+function assertTextAllowed(...parts: string[]): void {
+  const result = moderatePrompt(parts.filter(Boolean).join(" "));
+  if (!result.allowed) {
+    throw new CommunityWriteError(
+      "CONTENT_MODERATION_BLOCKED",
+      "This content isn't allowed. Please edit and try again.",
+      400
+    );
+  }
+}
 
 export class CommunityWriteError extends Error {
   readonly code: string;
@@ -203,6 +255,9 @@ export async function shareToCommunity(
       throw new CommunityWriteError("INVALID_REQUEST", "title, prompt, and a valid audioUrl are required.");
     }
 
+    assertTextAllowed(title, prompt);
+    await assertOwnedSoundscape(userId, audioUrl);
+
     const { error } = await supabaseAdmin.from("community_sounds").insert({
       user_id: userId,
       title,
@@ -227,6 +282,8 @@ export async function shareToCommunity(
   if (!mixName || !savedMixId || !layers) {
     throw new CommunityWriteError("INVALID_REQUEST", "name, savedMixId, and valid layers are required.");
   }
+
+  assertTextAllowed(mixName);
 
   const { error } = await supabaseAdmin.from("community_sounds").insert({
     user_id: userId,

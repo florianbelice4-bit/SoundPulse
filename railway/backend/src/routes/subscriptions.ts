@@ -4,6 +4,7 @@ import { authenticateUser } from "../middleware/authenticateUser.js";
 import { billingVerifyRateLimit } from "../middleware/userRateLimit.js";
 import {
   PlayBillingConfigError,
+  PlayPurchaseOwnershipError,
   PlayPurchaseVerificationError,
   verifyAndGrantPlayPurchase,
 } from "../services/playBilling.js";
@@ -76,6 +77,10 @@ subscriptionsRouter.post(
     } catch (err) {
       if (err instanceof PlayBillingConfigError) {
         sendSubscriptionError(res, 500, "CONFIG_ERROR", err.message);
+        return;
+      }
+      if (err instanceof PlayPurchaseOwnershipError) {
+        sendSubscriptionError(res, 403, "TOKEN_ALREADY_BOUND", err.message);
         return;
       }
       if (err instanceof PlayPurchaseVerificationError) {

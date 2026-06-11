@@ -1,4 +1,5 @@
 import { ensureBackendUrl, backendJsonHeaders } from "@/src/lib/backend";
+import { fetchWithTimeout, RequestTimeoutError } from "@/src/lib/fetchWithTimeout";
 import { supabase } from "@/src/lib/supabase";
 
 import { AUTH_CALLBACK_URL } from "./oauth";
@@ -22,15 +23,29 @@ export type SignUpResult = {
 
 export async function signUpWithEmail(email: string, password: string): Promise<SignUpResult> {
   const baseUrl = ensureBackendUrl();
-  const res = await fetch(`${baseUrl}/v1/auth/signup`, {
-    method: "POST",
-    headers: backendJsonHeaders(),
-    body: JSON.stringify({
-      email: email.trim().toLowerCase(),
-      password,
-      website: "",
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(`${baseUrl}/v1/auth/signup`, {
+      method: "POST",
+      headers: backendJsonHeaders(),
+      body: JSON.stringify({
+        email: email.trim().toLowerCase(),
+        password,
+        website: "",
+      }),
+      timeoutMs: 15000,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      userId: null,
+      needsEmailVerification: false,
+      error:
+        error instanceof RequestTimeoutError
+          ? error.message
+          : "Couldn't reach the server. Check your connection and try again.",
+    };
+  }
 
   const text = await res.text();
   let parsed: {
