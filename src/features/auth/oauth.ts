@@ -5,8 +5,13 @@ import { supabase } from "@/src/lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
 
-/** Add to Supabase Auth URL Configuration Redirect URLs. */
-export const GOOGLE_OAUTH_REDIRECT_TO = "soundpulse://auth/sign-in";
+/**
+ * Deep link for OAuth and email-confirmation callbacks. Must be a top-level
+ * route (app/auth-callback.tsx): the (auth) group never appears in URLs, so
+ * soundpulse://auth/sign-in has no matching route. Add this exact URL to
+ * Supabase Auth URL Configuration Redirect URLs.
+ */
+export const AUTH_CALLBACK_URL = "soundpulse://auth-callback";
 
 function safeDecode(value: string): string {
   try {
@@ -57,8 +62,29 @@ export function isOAuthCallbackUrl(url: string | null | undefined): boolean {
     lower.includes("access_token=") ||
     lower.includes("refresh_token=") ||
     lower.includes("code=") ||
-    (lower.includes("auth/sign-in") && lower.includes("error="))
+    ((lower.includes("auth-callback") || lower.includes("auth/sign-in")) && lower.includes("error="))
   );
+}
+
+/**
+ * The PKCE auth code is single-use, and a callback can reach the app through
+ * several paths at once (auth-callback route, the root-layout URL listener,
+ * and the awaited openAuthSessionAsync result). Exchange each code once and
+ * share the result with every caller.
+ */
+let lastCodeExchange: { code: string; result: Promise<{ error: Error | null }> } | null = null;
+
+function exchangeCodeOnce(code: string): Promise<{ error: Error | null }> {
+  if (lastCodeExchange?.code !== code) {
+    lastCodeExchange = {
+      code,
+      result: supabase.auth
+        .exchangeCodeForSession(code)
+        .then(({ error }) => ({ error: error ?? null }))
+        .catch((e: unknown) => ({ error: e instanceof Error ? e : new Error(String(e)) })),
+    };
+  }
+  return lastCodeExchange.result;
 }
 
 export async function createSessionFromOAuthUrl(url: string): Promise<{ error: Error | null }> {
@@ -70,8 +96,7 @@ export async function createSessionFromOAuthUrl(url: string): Promise<{ error: E
     }
 
     if (params.code) {
-      const { error } = await supabase.auth.exchangeCodeForSession(params.code);
-      return { error: error ?? null };
+      return exchangeCodeOnce(params.code);
     }
 
     if (params.access_token && params.refresh_token) {
@@ -93,7 +118,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: GOOGLE_OAUTH_REDIRECT_TO,
+        redirectTo: AUTH_CALLBACK_URL,
       },
     });
     return { error: error ?? null };
@@ -102,7 +127,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: GOOGLE_OAUTH_REDIRECT_TO,
+      redirectTo: AUTH_CALLBACK_URL,
       skipBrowserRedirect: true,
     },
   });
@@ -114,7 +139,7 @@ export async function signInWithGoogle(): Promise<{ error: Error | null; cancell
     return { error: new Error("OAuth URL missing") };
   }
 
-  const result = await WebBrowser.openAuthSessionAsync(data.url, GOOGLE_OAUTH_REDIRECT_TO);
+  const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_CALLBACK_URL);
   if (result.type === "cancel" || result.type === "dismiss") {
     return { error: null, cancelled: true };
   }

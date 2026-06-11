@@ -37,7 +37,10 @@ function isSuspiciousSignupEmail(email: string): boolean {
 }
 
 function signupRedirectUrl(): string {
-  return process.env.SIGNUP_EMAIL_REDIRECT_URL?.trim() || "soundpulse://auth/sign-in";
+  // Must be a top-level Expo Router route — the (auth) group never appears in
+  // URLs, so soundpulse://auth/sign-in has no matching route. Keep in sync
+  // with AUTH_CALLBACK_URL in the app and the Supabase redirect allowlist.
+  return process.env.SIGNUP_EMAIL_REDIRECT_URL?.trim() || "soundpulse://auth-callback";
 }
 
 authRouter.post("/signup", signupRateLimit, async (req: Request, res: Response) => {

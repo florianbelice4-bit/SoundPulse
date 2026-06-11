@@ -17,7 +17,11 @@ import { isAuthSignInDeepLink, soundpulseLinking } from "@/src/lib/appLinking";
 import { initAnalytics, trackEvent } from "@/src/lib/analytics";
 import { ThemePreferenceProvider, useThemePreference } from "@/src/theme";
 
-/** Deep link map: soundpulse://auth/sign-in → /(auth)/sign-in (used with app/+native-intent.tsx). */
+/**
+ * Deep link map: soundpulse://auth-callback routes file-based to
+ * app/auth-callback.tsx; legacy soundpulse://auth/sign-in links are rewritten
+ * to /(auth)/sign-in by app/+native-intent.tsx.
+ */
 export const linking = soundpulseLinking;
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -133,6 +137,9 @@ function useProtectedNavigation() {
     const inAuthGroup = segments[0] === "(auth)";
     const isPublicLegal =
       segments[0] === "privacy-policy" || segments[0] === "terms-of-service";
+    // The OAuth/email callback screen creates the session itself — don't
+    // bounce signed-out users off it while the code exchange is in flight.
+    const isAuthCallback = segments[0] === "auth-callback";
     const segList = segments as unknown as string[];
 
     if (session) {
@@ -155,7 +162,7 @@ function useProtectedNavigation() {
       return;
     }
 
-    if (!inAuthGroup && !isPublicLegal) {
+    if (!inAuthGroup && !isPublicLegal && !isAuthCallback) {
       router.replace("/(auth)/sign-in");
     }
   }, [isLoading, router, segments, session]);
@@ -186,6 +193,7 @@ function RootLayoutInner() {
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="index" />
+        <Stack.Screen name="auth-callback" />
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="upgrade" />

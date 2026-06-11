@@ -1,5 +1,5 @@
-import { Link } from "expo-router";
-import { useMemo, useState } from "react";
+import { Link, useLocalSearchParams } from "expo-router";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { signInWithEmail } from "@/src/features/auth/api";
@@ -12,11 +12,19 @@ import { useAppTheme } from "@/src/theme";
 
 export default function SignInScreen() {
   const theme = useAppTheme();
+  const params = useLocalSearchParams<{ error?: string }>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // Surface failures forwarded by the auth-callback route (?error=...).
+  useEffect(() => {
+    if (typeof params.error === "string" && params.error.trim()) {
+      setErrorMessage(params.error.trim());
+    }
+  }, [params.error]);
 
   const styles = useMemo(
     () =>

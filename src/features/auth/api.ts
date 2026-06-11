@@ -1,13 +1,15 @@
 import { ensureBackendUrl, backendJsonHeaders } from "@/src/lib/backend";
 import { supabase } from "@/src/lib/supabase";
 
+import { AUTH_CALLBACK_URL } from "./oauth";
+
 export async function signInWithEmail(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
 }
 
 /** Redirect URL for Supabase email confirmation (add to Auth URL Configuration in dashboard). */
 export function getAuthEmailRedirectUrl(): string {
-  return "soundpulse://auth/sign-in";
+  return AUTH_CALLBACK_URL;
 }
 
 export type SignUpResult = {
