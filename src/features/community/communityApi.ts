@@ -140,10 +140,12 @@ async function fetchReportedSoundIds(userId: string, soundIds: string[]): Promis
     return reported;
   }
 
+  // Reports are written to sound_reports (via the backend); read the user's own
+  // rows there so sounds they've reported stay hidden across refreshes.
   const { data, error } = await supabase
-    .from("reports")
+    .from("sound_reports")
     .select("sound_id")
-    .eq("reporter_id", userId)
+    .eq("user_id", userId)
     .in("sound_id", soundIds);
 
   if (error) {

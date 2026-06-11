@@ -1,3 +1,4 @@
+import { reportCommunitySoundViaBackend } from "@/src/features/community/communityBackendApi";
 import { supabase } from "@/src/lib/supabase";
 
 type CommunitySoundOwnerRow = {
@@ -68,7 +69,7 @@ async function getReportedUserId(soundId: string, reporterId: string): Promise<s
 export async function reportSound(soundId: string, reason: string, details?: string): Promise<void> {
   const trimmedSoundId = soundId.trim();
   const trimmedReason = reason.trim();
-  const trimmedDetails = details?.trim() || null;
+  const trimmedDetails = details?.trim() || "";
 
   if (!trimmedSoundId) {
     throw new Error("Choose a sound to report.");
@@ -77,23 +78,14 @@ export async function reportSound(soundId: string, reason: string, details?: str
     throw new Error("Choose a report reason.");
   }
 
+  // Validate the target client-side (existence + not-your-own-sound) for a
+  // friendly message, then route the report through the backend so it lands in
+  // sound_reports — the table whose trigger powers trusted-reporter auto-hide.
   const reporterId = await getCurrentUserId();
-  const reportedUserId = await getReportedUserId(trimmedSoundId, reporterId);
+  await getReportedUserId(trimmedSoundId, reporterId);
 
-  const { error } = await supabase.from("reports").insert({
-    sound_id: trimmedSoundId,
-    reporter_id: reporterId,
-    reported_user_id: reportedUserId,
-    reason: trimmedReason,
-    details: trimmedDetails,
-  });
-
-  if (error) {
-    if (error.code === "23505") {
-      throw new Error("You already reported this sound.");
-    }
-    throw new Error(error.message);
-  }
+  const combinedReason = trimmedDetails ? `${trimmedReason} - ${trimmedDetails}` : trimmedReason;
+  await reportCommunitySoundViaBackend(trimmedSoundId, combinedReason);
 }
 
 export async function blockUser(userId: string): Promise<void> {
