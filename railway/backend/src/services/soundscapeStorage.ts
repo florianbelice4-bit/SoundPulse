@@ -38,3 +38,25 @@ export async function uploadGeneratedSoundscape(
 
   return { url, duration: durationSeconds, path: objectPath };
 }
+
+/**
+ * Best-effort deletion of every soundscape a user owns (their `<user_id>/`
+ * folder). Used by account deletion. Never throws — account removal proceeds
+ * even if storage cleanup partially fails (orphaned files are harmless).
+ */
+export async function deleteUserSoundscapes(userId: string): Promise<void> {
+  const safeUser = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+  const { data, error } = await supabaseAdmin.storage.from(BUCKET).list(safeUser, { limit: 1000 });
+  if (error) {
+    console.error("[soundscapeStorage] list for delete failed:", error.message);
+    return;
+  }
+  const paths = (data ?? []).map((file) => `${safeUser}/${file.name}`);
+  if (paths.length === 0) {
+    return;
+  }
+  const { error: removeError } = await supabaseAdmin.storage.from(BUCKET).remove(paths);
+  if (removeError) {
+    console.error("[soundscapeStorage] remove for delete failed:", removeError.message);
+  }
+}
