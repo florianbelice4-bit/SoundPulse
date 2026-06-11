@@ -88,9 +88,15 @@ authRouter.post("/signup", signupRateLimit, async (req: Request, res: Response) 
     if (error) {
       const msg = error.message.toLowerCase();
       if (msg.includes("already") || msg.includes("registered")) {
-        return res.status(409).json({
-          error: "EMAIL_IN_USE",
-          message: "An account with this email already exists.",
+        // Anti-enumeration: respond exactly like a fresh signup so callers can't
+        // tell whether the email is registered. The existing account is left
+        // untouched and no new email is sent.
+        return res.status(201).json({
+          ok: true,
+          userId: null,
+          emailRedirectTo: signupRedirectUrl(),
+          needsEmailVerification: true,
+          confirmationEmailSent: false,
         });
       }
       console.error("[auth/signup]", error.message);

@@ -65,15 +65,15 @@ export default function ForgotPasswordScreen() {
 
     if (error) {
       const msg = error.message.toLowerCase();
-      if (msg.includes("user not found") || msg.includes("email not found") || msg.includes("invalid")) {
-        setErrorMessage("No account found for this email.");
+      // Never reveal whether an account exists. Surface only non-enumerating
+      // failures (rate limiting); treat everything else as a neutral success.
+      if (msg.includes("rate") || msg.includes("too many")) {
+        setErrorMessage("Too many attempts. Please wait a moment and try again.");
         return;
       }
-      setErrorMessage(error.message);
-      return;
     }
 
-    setSuccessMessage("Check your email for a reset link");
+    setSuccessMessage("If an account exists for this email, we've sent a reset link.");
   };
 
   return (
