@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { signUpWithEmail } from "@/src/features/auth/api";
+import { evaluatePassword, passwordError } from "@/src/features/auth/passwordStrength";
 import { signInWithGoogle } from "@/src/features/auth/oauth";
 import { GoogleSignInButton } from "@/src/components/auth/GoogleSignInButton";
 import { seedNewUserProfile } from "@/src/features/auth/signupProfile";
@@ -83,6 +84,14 @@ export default function SignUpScreen() {
     [theme]
   );
 
+  const strength = useMemo(() => evaluatePassword(password), [password]);
+  const strengthColor =
+    strength.score <= 1
+      ? theme.colors.coral
+      : strength.score <= 2
+        ? theme.colors.sky
+        : theme.colors.lime;
+
   const handleGoogleSignIn = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -109,8 +118,9 @@ export default function SignUpScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
+    const pwError = passwordError(password);
+    if (pwError) {
+      setErrorMessage(pwError);
       return;
     }
 
@@ -182,6 +192,42 @@ export default function SignUpScreen() {
           value={password}
           onChangeText={setPassword}
         />
+
+        {password.length > 0 ? (
+          <View style={{ gap: 4 }}>
+            <Text style={{ ...theme.typography.caption, color: strengthColor, fontWeight: "700" }}>
+              Password strength: {strength.label}
+            </Text>
+            <Text
+              style={{
+                ...theme.typography.caption,
+                color: strength.checks.length ? theme.colors.lime : theme.colors.textSecondary,
+              }}
+            >
+              {strength.checks.length ? "✓" : "•"} At least 10 characters
+            </Text>
+            <Text
+              style={{
+                ...theme.typography.caption,
+                color:
+                  strength.checks.letter && strength.checks.number
+                    ? theme.colors.lime
+                    : theme.colors.textSecondary,
+              }}
+            >
+              {strength.checks.letter && strength.checks.number ? "✓" : "•"} Letters and numbers
+            </Text>
+            <Text
+              style={{
+                ...theme.typography.caption,
+                color: strength.checks.upperLower ? theme.colors.lime : theme.colors.textSecondary,
+              }}
+            >
+              {strength.checks.upperLower ? "✓" : "•"} Upper and lower case (recommended)
+            </Text>
+          </View>
+        ) : null}
+
         <Input
           autoCapitalize="none"
           autoComplete="password"
