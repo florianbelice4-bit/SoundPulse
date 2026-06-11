@@ -12,6 +12,17 @@ if (sentryDsn) {
   Sentry.init({
     dsn: sentryDsn,
     tracesSampleRate: 0.2,
+    sendDefaultPii: false,
+    beforeSend(event) {
+      // Belt-and-suspenders: never let auth/cookie headers reach Sentry.
+      if (event.request?.headers) {
+        delete event.request.headers.authorization;
+        delete event.request.headers.Authorization;
+        delete event.request.headers.cookie;
+        delete event.request.headers["x-app-key"];
+      }
+      return event;
+    },
   });
 }
 
@@ -21,6 +32,7 @@ app.set("trust proxy", 1);
 
 app.use(helmet());
 
+const isProduction = process.env.NODE_ENV === "production";
 const envOrigins = (process.env.CORS_ORIGIN ?? "")
   .split(",")
   .map((o) => o.trim())
@@ -28,6 +40,7 @@ const envOrigins = (process.env.CORS_ORIGIN ?? "")
 
 const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
+    // Native mobile requests send no Origin header — always allowed.
     if (!origin) {
       callback(null, true);
       return;
@@ -40,7 +53,8 @@ const corsOptions: cors.CorsOptions = {
       callback(null, true);
       return;
     }
-    if (/^exp:\/\//.test(origin)) {
+    // Expo Go / dev-client (exp://) and localhost are dev-only — never in prod.
+    if (!isProduction && (/^exp:\/\//.test(origin) || /^https?:\/\/localhost(:\d+)?$/.test(origin))) {
       callback(null, true);
       return;
     }
