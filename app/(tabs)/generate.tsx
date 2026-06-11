@@ -77,7 +77,7 @@ export default function GenerateScreen() {
   const theme = useAppTheme();
   const scrollBottomPad = useScrollContentBottomPad(24);
   const { session } = useAuthSession();
-  const { isPremium } = useIsPremium();
+  const { isPremium, loading: premiumLoading } = useIsPremium();
 
   const [mode, setMode] = useState<GenerateMode>("ai");
   const [prompt, setPrompt] = useState("");
@@ -216,6 +216,15 @@ export default function GenerateScreen() {
       return;
     }
 
+    // AI generation is premium-only. Show the upgrade prompt up front instead of
+    // letting the request hit the backend and fail. While premium status is
+    // still loading we let it through — the backend remains the final gate.
+    if (!isPremium && !premiumLoading) {
+      setPaywallMessage("AI generation requires a paid plan. Upgrade to start generating sounds.");
+      setPaywallVisible(true);
+      return;
+    }
+
     setAiLoading(true);
     setAiError(null);
     setAiResult(null);
@@ -259,7 +268,7 @@ export default function GenerateScreen() {
     } finally {
       setAiLoading(false);
     }
-  }, [prompt, session?.user?.id, saveGeneratedSound, showToast]);
+  }, [prompt, session?.user?.id, isPremium, premiumLoading, saveGeneratedSound, showToast]);
 
   const publishToCommunity = useCallback(
     async (result: AiGenerationResult, userId: string) => {

@@ -7,7 +7,10 @@ export function currentMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-export const FREE_AI_GENERATIONS_PER_MONTH = 3;
+// AI generation is a premium-only feature. The backend grants 0 generations to
+// free accounts (reserve_generation_slot returns false), so the app must not
+// promise any. Keep in sync with railway generationLimits.ts (free = 0).
+export const FREE_AI_GENERATIONS_PER_MONTH = 0;
 
 type EntitlementsState = {
   isPremium: boolean;
