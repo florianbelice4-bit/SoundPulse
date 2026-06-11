@@ -17,6 +17,7 @@ import { Platform } from "react-native";
 
 import { backendJsonHeaders, ensureBackendUrl } from "@/src/lib/backend";
 import { sanitizedErrorReason, trackEvent } from "@/src/lib/analytics";
+import { fetchWithTimeout } from "@/src/lib/fetchWithTimeout";
 import { supabase } from "@/src/lib/supabase";
 
 import {
@@ -42,7 +43,6 @@ export type BillingSubscriptionRow = {
   status: string | null;
   expires_at: string | null;
   product_id?: string | null;
-  purchase_token?: string | null;
 };
 
 type PurchaseListenerHandlers = {
@@ -234,7 +234,7 @@ export async function verifyPurchaseWithBackend(purchase: Purchase): Promise<Bil
 
   const { userId, accessToken } = await getCurrentUserSession();
   const baseUrl = ensureBackendUrl();
-  const response = await fetch(`${baseUrl}/api/subscriptions/verify`, {
+  const response = await fetchWithTimeout(`${baseUrl}/api/subscriptions/verify`, {
     method: "POST",
     headers: backendJsonHeaders(accessToken),
     body: JSON.stringify({
@@ -243,6 +243,7 @@ export async function verifyPurchaseWithBackend(purchase: Purchase): Promise<Bil
       purchaseToken,
       packageName: getPackageName(purchase),
     }),
+    timeoutMs: 30000,
   });
 
   const text = await response.text();
@@ -329,7 +330,7 @@ export async function getCurrentSubscription(): Promise<BillingSubscriptionRow |
 
   const { data, error } = await supabase
     .from("subscriptions")
-    .select("plan,status,expires_at,product_id,purchase_token")
+    .select("plan,status,expires_at,product_id")
     .eq("user_id", user.id)
     .order("expires_at", { ascending: false })
     .limit(1);
