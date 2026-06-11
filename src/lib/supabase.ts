@@ -20,6 +20,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
+    // PKCE so OAuth callbacks carry ?code= in the query string. The implicit
+    // flow returns tokens in the URL #fragment, which deep-link query parsing
+    // never sees. Email links sent without a code challenge (admin resend)
+    // still arrive as fragment tokens — createSessionFromOAuthUrl handles both.
+    flowType: "pkce",
     storage,
   },
 });

@@ -97,11 +97,24 @@ authRouter.post("/signup", signupRateLimit, async (req: Request, res: Response) 
       });
     }
 
+    // admin.createUser never emails the user. resend() pushes the signup
+    // confirmation through Supabase's mailer for an unconfirmed account
+    // (admin.generateLink only returns a link without sending anything).
+    const { error: confirmationError } = await supabaseAdmin.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: signupRedirectUrl() },
+    });
+    if (confirmationError) {
+      console.error("[auth/signup] confirmation email:", confirmationError.message);
+    }
+
     return res.status(201).json({
       ok: true,
       userId: data.user?.id ?? null,
       emailRedirectTo: signupRedirectUrl(),
       needsEmailVerification: true,
+      confirmationEmailSent: !confirmationError,
     });
   } catch (err) {
     console.error("[auth/signup]", err);
