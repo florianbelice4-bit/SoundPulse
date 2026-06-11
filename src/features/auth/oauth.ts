@@ -1,4 +1,3 @@
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 
@@ -9,14 +8,41 @@ WebBrowser.maybeCompleteAuthSession();
 /** Add to Supabase Auth URL Configuration Redirect URLs. */
 export const GOOGLE_OAUTH_REDIRECT_TO = "soundpulse://auth/sign-in";
 
-function firstQueryParam(value: string | string[] | undefined): string | undefined {
-  if (typeof value === "string") {
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value.replace(/\+/g, " "));
+  } catch {
     return value;
   }
-  if (Array.isArray(value) && typeof value[0] === "string") {
-    return value[0];
+}
+
+/**
+ * Supabase callbacks carry params in the query (?code=, PKCE) or in the
+ * fragment (#access_token=, implicit-style email confirmation links), so
+ * collect key/value pairs from both.
+ */
+function parseAuthCallbackParams(url: string): Record<string, string> {
+  const params: Record<string, string> = {};
+  const collect = (segment: string) => {
+    for (const pair of segment.split("&")) {
+      const eq = pair.indexOf("=");
+      if (eq <= 0) {
+        continue;
+      }
+      params[safeDecode(pair.slice(0, eq))] = safeDecode(pair.slice(eq + 1));
+    }
+  };
+
+  const hashIdx = url.indexOf("#");
+  const beforeFragment = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
+  const queryIdx = beforeFragment.indexOf("?");
+  if (queryIdx >= 0) {
+    collect(beforeFragment.slice(queryIdx + 1));
   }
-  return undefined;
+  if (hashIdx >= 0) {
+    collect(url.slice(hashIdx + 1));
+  }
+  return params;
 }
 
 export function isOAuthCallbackUrl(url: string | null | undefined): boolean {
@@ -37,18 +63,21 @@ export function isOAuthCallbackUrl(url: string | null | undefined): boolean {
 
 export async function createSessionFromOAuthUrl(url: string): Promise<{ error: Error | null }> {
   try {
-    if (url.includes("code=")) {
-      const { error } = await supabase.auth.exchangeCodeForSession(url);
+    const params = parseAuthCallbackParams(url);
+
+    if (params.error_description || params.error) {
+      return { error: new Error(params.error_description || params.error) };
+    }
+
+    if (params.code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(params.code);
       return { error: error ?? null };
     }
 
-    const parsed = Linking.parse(url);
-    const accessToken = firstQueryParam(parsed.queryParams?.access_token);
-    const refreshToken = firstQueryParam(parsed.queryParams?.refresh_token);
-    if (accessToken && refreshToken) {
+    if (params.access_token && params.refresh_token) {
       const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
+        access_token: params.access_token,
+        refresh_token: params.refresh_token,
       });
       return { error: error ?? null };
     }
