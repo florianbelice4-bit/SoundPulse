@@ -49,7 +49,16 @@ export function getDeepLinkPathname(url: string): string {
   try {
     const parsed = Linking.parse(url);
     const path = typeof parsed.path === "string" ? parsed.path.trim() : "";
-    return path.replace(/^\/+/, "").toLowerCase();
+    // URL parsing reads the first segment of a custom-scheme link as the
+    // hostname (soundpulse://auth/sign-in → hostname "auth", path "sign-in"),
+    // so stitch it back onto the pathname for soundpulse:// links.
+    const scheme = (parsed.scheme ?? "").toLowerCase();
+    const hostname = typeof parsed.hostname === "string" ? parsed.hostname.trim() : "";
+    const joined =
+      scheme === "soundpulse" && hostname
+        ? `${hostname}/${path.replace(/^\/+/, "")}`.replace(/\/+$/, "")
+        : path;
+    return joined.replace(/^\/+/, "").toLowerCase();
   } catch {
     const withoutScheme = url.replace(/^soundpulse:\/\//i, "");
     const { pathname } = splitPathAndSuffix(withoutScheme);
