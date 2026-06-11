@@ -154,3 +154,29 @@ export function moderatePrompt(input: string): ModerationResult {
 
   return { allowed: true };
 }
+
+// Mild profanity (separate from the harm categories above). Used to keep
+// user-facing text — display names, shared titles — clean. Whole-word matched.
+const PROFANITY = wordListMatcher([
+  "fuck",
+  "fucking",
+  "fucker",
+  "motherfucker",
+  "shit",
+  "bullshit",
+  "asshole",
+  "bitch",
+  "bastard",
+  "cunt",
+  "dick",
+  "douche",
+  "twat",
+  "wanker",
+  "slut",
+  "whore",
+]);
+
+export function containsProfanity(input: string): boolean {
+  const text = typeof input === "string" ? normalize(input) : "";
+  return text ? PROFANITY.test(text) : false;
+}

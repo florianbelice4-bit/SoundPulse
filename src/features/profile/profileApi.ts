@@ -1,3 +1,4 @@
+import { containsProfanity } from "@/src/lib/profanity";
 import { sanitizeDisplayName } from "@/src/lib/sanitize";
 import { supabase } from "@/src/lib/supabase";
 
@@ -18,6 +19,9 @@ export function validateDisplayName(value: string): string | null {
   }
   if (normalized !== value.trim().replace(/\s+/g, " ")) {
     return "Name contains invalid characters.";
+  }
+  if (containsProfanity(normalized)) {
+    return "Please choose appropriate language.";
   }
   return null;
 }
