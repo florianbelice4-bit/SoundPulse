@@ -204,7 +204,7 @@ export default function SignUpScreen() {
                 color: strength.checks.length ? theme.colors.lime : theme.colors.textSecondary,
               }}
             >
-              {strength.checks.length ? "✓" : "•"} At least 10 characters
+              {strength.checks.length ? "✓" : "•"} At least 8 characters
             </Text>
             <Text
               style={{
