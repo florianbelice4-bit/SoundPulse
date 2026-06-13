@@ -53,6 +53,14 @@ export const accountDeleteRateLimit = createUserRateLimit({
   message: "Too many account deletion attempts. Try again tomorrow.",
 });
 
+/** GET /v1/account/export — 5 per fully authenticated user per day. */
+export const accountExportRateLimit = createUserRateLimit({
+  windowMs: DAY_MS,
+  max: 5,
+  errorCode: "ACCOUNT_EXPORT_RATE_LIMITED",
+  message: "Too many export requests. Try again tomorrow.",
+});
+
 /** POST /v1/community/pulse — 60 per user per hour. */
 export const communityPulseRateLimit = createUserRateLimit({
   windowMs: HOUR_MS,

@@ -5,7 +5,7 @@ import { signupRateLimit } from "../middleware/signupRateLimit.js";
 
 export const authRouter = express.Router();
 
-const MIN_PASSWORD_LEN = 6;
+const MIN_PASSWORD_LEN = 8;
 const MAX_PASSWORD_LEN = 128;
 
 function isSuspiciousSignupEmail(email: string): boolean {
@@ -64,6 +64,14 @@ authRouter.post("/signup", signupRateLimit, async (req: Request, res: Response) 
       return res.status(400).json({
         error: "INVALID_REQUEST",
         message: `Password must be ${MIN_PASSWORD_LEN}-${MAX_PASSWORD_LEN} characters.`,
+      });
+    }
+    // Require at least one letter and one number so an 8-char password can't be
+    // all digits or all letters.
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      return res.status(400).json({
+        error: "INVALID_REQUEST",
+        message: "Password must include at least one letter and one number.",
       });
     }
     if (password.toLowerCase() === email || password === email.split("@")[0]) {

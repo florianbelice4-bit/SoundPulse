@@ -25,6 +25,7 @@ import { ProfileAvatar } from "@/src/components/profile/ProfileAvatar";
 import { Screen } from "@/src/components/core/Screen";
 import { signOut } from "@/src/features/auth/api";
 import { useAuthSession } from "@/src/features/auth/useAuthSession";
+import { deleteAccount, exportAccountData } from "@/src/features/account/accountApi";
 import { submitFeedback, type FeedbackType } from "@/src/features/feedback/feedbackApi";
 import { FREE_AI_GENERATIONS_PER_MONTH } from "@/src/features/generate/entitlementsStore";
 import { updateProfileDisplayName } from "@/src/features/profile/profileApi";
@@ -177,6 +178,10 @@ export default function ProfileScreen() {
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
   const [analyticsOptedOut, setAnalyticsOptedOut] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
   const styles = useMemo(
@@ -554,6 +559,49 @@ export default function ProfileScreen() {
     router.replace("/(auth)/sign-in");
   }, [router]);
 
+  const handleExportData = useCallback(async () => {
+    setExporting(true);
+    setErrorMessage(null);
+    try {
+      await exportAccountData();
+      showToast("Data export ready");
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : "Could not export your data.");
+    } finally {
+      setExporting(false);
+    }
+  }, [showToast]);
+
+  const openDeleteModal = useCallback(() => {
+    setDeleteConfirmText("");
+    setErrorMessage(null);
+    setDeleteModalVisible(true);
+  }, []);
+
+  const closeDeleteModal = useCallback(() => {
+    if (deleting) {
+      return;
+    }
+    setDeleteModalVisible(false);
+  }, [deleting]);
+
+  const confirmDeleteAccount = useCallback(async () => {
+    if (deleteConfirmText.trim().toUpperCase() !== "DELETE") {
+      return;
+    }
+    setDeleting(true);
+    setErrorMessage(null);
+    try {
+      await deleteAccount();
+      await signOut();
+      setDeleteModalVisible(false);
+      router.replace("/(auth)/sign-in");
+    } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : "Could not delete your account.");
+      setDeleting(false);
+    }
+  }, [deleteConfirmText, router]);
+
   const handleManageSubscription = useCallback(() => {
     const url = subscriptionManagementUrl();
     Linking.openURL(url).catch(() => {
@@ -786,6 +834,36 @@ export default function ProfileScreen() {
               </View>
             </Card>
 
+            <Card style={[styles.settingsCard, { borderColor: `${theme.colors.coral}55` }]}>
+              <Text style={[styles.sectionLabel, { color: `${theme.colors.coral}cc` }]}>Danger zone</Text>
+              <View style={styles.buttonStack}>
+                <Button
+                  label={exporting ? "Preparing export…" : "Export My Data"}
+                  variant="secondary"
+                  disabled={exporting}
+                  onPress={() => void handleExportData()}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete account"
+                  onPress={openDeleteModal}
+                  style={{
+                    minHeight: 48,
+                    borderRadius: theme.radius.lg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1,
+                    borderColor: theme.colors.coral,
+                    backgroundColor: `${theme.colors.coral}14`,
+                  }}
+                >
+                  <Text style={{ ...theme.typography.body, color: theme.colors.coral, fontWeight: "800" }}>
+                    Delete Account
+                  </Text>
+                </Pressable>
+              </View>
+            </Card>
+
             <Card style={styles.settingsCard}>
               <View style={styles.legalRow}>
                 <Pressable onPress={() => router.push("/privacy-policy")}>
@@ -856,6 +934,52 @@ export default function ProfileScreen() {
               disabled={submittingFeedback || !feedbackMessage.trim()}
             />
             <Button label="Cancel" variant="secondary" onPress={closeFeedbackModal} disabled={submittingFeedback} />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={closeDeleteModal}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeDeleteModal} accessibilityLabel="Close" />
+          <View style={[styles.modalCard, { borderColor: `${theme.colors.coral}66` }]}>
+            <Text style={styles.modalTitle}>Delete account</Text>
+            <Text style={styles.modalHint}>
+              This permanently deletes your account, generated sounds, saved sounds, and subscription
+              records. This cannot be undone.
+            </Text>
+            <Text style={[styles.modalHint, { color: theme.colors.textPrimary, fontWeight: "700" }]}>
+              Type DELETE to confirm.
+            </Text>
+            <Input
+              placeholder="DELETE"
+              placeholderTextColor={theme.colors.textSecondary}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+            />
+            {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Delete forever"
+              disabled={deleting || deleteConfirmText.trim().toUpperCase() !== "DELETE"}
+              onPress={() => void confirmDeleteAccount()}
+              style={{
+                minHeight: 48,
+                borderRadius: theme.radius.lg,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor:
+                  deleteConfirmText.trim().toUpperCase() === "DELETE" && !deleting
+                    ? theme.colors.coral
+                    : `${theme.colors.coral}55`,
+              }}
+            >
+              <Text style={{ ...theme.typography.body, color: "#FFFFFF", fontWeight: "800" }}>
+                {deleting ? "Deleting…" : "Delete Forever"}
+              </Text>
+            </Pressable>
+            <Button label="Cancel" variant="secondary" onPress={closeDeleteModal} disabled={deleting} />
           </View>
         </View>
       </Modal>

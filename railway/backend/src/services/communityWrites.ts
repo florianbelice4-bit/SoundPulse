@@ -8,7 +8,7 @@ import {
   sanitizeSoundTitle,
 } from "./communityValidation.js";
 import { userCanSubmitReport, userHasPremium } from "./premiumAccess.js";
-import { moderatePrompt } from "./promptModeration.js";
+import { containsProfanity, moderatePrompt } from "./promptModeration.js";
 
 /** Public URL prefix for the user's own generated soundscapes. */
 function ownedSoundscapePrefix(): string {
@@ -51,11 +51,19 @@ async function assertOwnedSoundscape(userId: string, audioUrl: string): Promise<
 
 /** Block clearly-prohibited text before it reaches Discover. */
 function assertTextAllowed(...parts: string[]): void {
-  const result = moderatePrompt(parts.filter(Boolean).join(" "));
+  const combined = parts.filter(Boolean).join(" ");
+  const result = moderatePrompt(combined);
   if (!result.allowed) {
     throw new CommunityWriteError(
       "CONTENT_MODERATION_BLOCKED",
       "This content isn't allowed. Please edit and try again.",
+      400
+    );
+  }
+  if (containsProfanity(combined)) {
+    throw new CommunityWriteError(
+      "PROFANITY_BLOCKED",
+      "Please choose appropriate language.",
       400
     );
   }
