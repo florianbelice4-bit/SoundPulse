@@ -4,6 +4,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import helmet from "helmet";
 
 import { globalIpRateLimit } from "./middleware/globalIpRateLimit.js";
+import { playWebhooksRouter } from "./routes/playWebhooks.js";
 import { subscriptionsRouter } from "./routes/subscriptions.js";
 import { v1Router } from "./routes/v1.js";
 
@@ -67,6 +68,13 @@ const corsOptions: cors.CorsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
+
+// Google Play RTDN (Pub/Sub push) — server-to-server, authenticated by its own
+// URL secret. Mounted before the IP rate limit and the app-key/JWT gates: it is
+// not the mobile app, and Pub/Sub can burst from many Google IPs.
+// Full path: POST /webhooks/google-play/rtdn
+app.use("/webhooks", playWebhooksRouter);
+
 // 100 req/min per IP on all Railway routes. Supabase PostgREST is called directly by
 // the mobile client (not proxied here), so database API rate limits belong in Supabase.
 app.use(globalIpRateLimit);
