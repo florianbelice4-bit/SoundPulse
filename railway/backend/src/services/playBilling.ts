@@ -422,3 +422,59 @@ export async function verifyAndGrantPlayPurchase(
     );
   }
 }
+
+/**
+ * Re-verify a known subscription with Google and apply its authoritative state
+ * to the user. Used by RTDN for renewals/cancels/grace events.
+ *
+ * Unlike verifyAndGrantPlayPurchase, this does NOT refund/revoke on failure: a
+ * transient API error must never void a valid purchase. A genuine inactive state
+ * surfaces as PlayPurchaseVerificationError for the caller to act on (downgrade).
+ */
+export async function refreshPlaySubscription(
+  userId: string,
+  productId: string,
+  purchaseToken: string
+): Promise<VerifiedPlayPurchaseResult> {
+  const tier = playProductIdToTier(productId);
+  if (!tier) {
+    throw new PlayPurchaseVerificationError(`No plan tier mapped for ${productId}`);
+  }
+  const publisher = getAndroidPublisher();
+  const packageName = getPackageName();
+  const verified = await verifySubscriptionPurchase(publisher, packageName, productId, purchaseToken.trim());
+  await applyVerifiedTierToProfile(userId, tier, verified);
+  return { ...verified, tier };
+}
+
+/**
+ * Drop a user to the free plan and stamp the terminal status on their
+ * subscription row (revoked/expired/paused). Used by RTDN downgrade events.
+ */
+export async function downgradePlaySubscription(
+  userId: string,
+  purchaseToken: string,
+  status: string
+): Promise<void> {
+  const { error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      plan: "free",
+      subscription_tier: "free",
+      subscription_active: false,
+      subscription_status: status,
+    })
+    .eq("id", userId);
+  if (profileError) {
+    throw new Error(`Failed to downgrade profile: ${profileError.message}`);
+  }
+
+  const { error: subscriptionError } = await supabaseAdmin
+    .from("subscriptions")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("purchase_token", purchaseToken)
+    .eq("user_id", userId);
+  if (subscriptionError) {
+    throw new Error(`Failed to downgrade subscription: ${subscriptionError.message}`);
+  }
+}
