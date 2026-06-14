@@ -1,6 +1,8 @@
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import type { Request } from "express";
 
+import { createRateLimitStore } from "../lib/redis.js";
+
 type UserRateLimitOptions = {
   windowMs: number;
   max: number;
@@ -22,6 +24,9 @@ function createUserRateLimit(options: UserRateLimitOptions) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: userKey,
+    // Unique Redis keyspace per limiter (errorCode is unique); fail open.
+    store: createRateLimitStore(`rl:${options.errorCode}:`),
+    passOnStoreError: true,
     message: { error: options.errorCode, message: options.message },
   });
 }
