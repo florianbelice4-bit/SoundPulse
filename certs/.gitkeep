@@ -1,3 +1,0 @@
-# Expo Updates code signing certificate lives here.
-# Generate it locally (see docs/CODE_SIGNING.md); commit certs/certificate.pem
-# (public, safe). Never commit the private key — keys/ is gitignored.
