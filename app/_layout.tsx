@@ -13,15 +13,11 @@ import { seedNewUserProfile } from "@/src/features/auth/signupProfile";
 import { needsEmailVerification } from "@/src/features/auth/emailVerification";
 import { useAuthSession } from "@/src/features/auth/useAuthSession";
 import { createSessionFromOAuthUrl, isOAuthCallbackUrl } from "@/src/features/auth/oauth";
-import { isAuthSignInDeepLink, soundpulseLinking } from "@/src/lib/appLinking";
+import { soundpulseLinking } from "@/src/lib/appLinking";
 import { initAnalytics, trackEvent } from "@/src/lib/analytics";
 import { ThemePreferenceProvider, useThemePreference } from "@/src/theme";
 
-/**
- * Deep link map: soundpulse://auth-callback routes file-based to
- * app/auth-callback.tsx; legacy soundpulse://auth/sign-in links are rewritten
- * to /(auth)/sign-in by app/+native-intent.tsx.
- */
+/** Deep link map: soundpulse://auth-callback routes to app/auth-callback.tsx. */
 export const linking = soundpulseLinking;
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -82,28 +78,10 @@ function useProtectedNavigation() {
     return true;
   }, []);
 
-  const handleAuthSignInDeepLink = useCallback(
-    async (url: string | null | undefined) => {
-      if (!url || !isAuthSignInDeepLink(url)) {
-        return false;
-      }
-      if (await handleOAuthCallback(url)) {
-        router.replace("/(auth)/sign-in");
-        return true;
-      }
-      router.replace("/(auth)/sign-in");
-      return true;
-    },
-    [handleOAuthCallback, router]
-  );
-
   useEffect(() => {
     const handleURL = ({ url }: { url: string }) => {
       void (async () => {
         if (await handleOAuthCallback(url)) {
-          return;
-        }
-        if (await handleAuthSignInDeepLink(url)) {
           return;
         }
         if (shouldRedirectEmptyDeepLink(url)) {
@@ -113,21 +91,18 @@ function useProtectedNavigation() {
     };
     const sub = Linking.addEventListener("url", handleURL);
     return () => sub.remove();
-  }, [handleAuthSignInDeepLink, handleOAuthCallback, router, shouldRedirectEmptyDeepLink]);
+  }, [handleOAuthCallback, router, shouldRedirectEmptyDeepLink]);
 
   useEffect(() => {
     void Linking.getInitialURL().then(async (url) => {
       if (await handleOAuthCallback(url)) {
         return;
       }
-      if (await handleAuthSignInDeepLink(url)) {
-        return;
-      }
       if (shouldRedirectEmptyDeepLink(url)) {
         router.replace("/(tabs)/home");
       }
     });
-  }, [handleAuthSignInDeepLink, handleOAuthCallback, router, shouldRedirectEmptyDeepLink]);
+  }, [handleOAuthCallback, router, shouldRedirectEmptyDeepLink]);
 
   useEffect(() => {
     if (isLoading) {

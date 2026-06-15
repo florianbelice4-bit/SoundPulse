@@ -7,9 +7,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 /**
  * Deep link for OAuth and email-confirmation callbacks. Must be a top-level
- * route (app/auth-callback.tsx): the (auth) group never appears in URLs, so
- * soundpulse://auth/sign-in has no matching route. Add this exact URL to
- * Supabase Auth URL Configuration Redirect URLs.
+ * route (app/auth-callback.tsx) because the (auth) route group never appears in
+ * URLs. Add this exact URL to the Supabase Auth Redirect URL allowlist.
  */
 export const AUTH_CALLBACK_URL = "soundpulse://auth-callback";
 
@@ -62,7 +61,7 @@ export function isOAuthCallbackUrl(url: string | null | undefined): boolean {
     lower.includes("access_token=") ||
     lower.includes("refresh_token=") ||
     lower.includes("code=") ||
-    ((lower.includes("auth-callback") || lower.includes("auth/sign-in")) && lower.includes("error="))
+    (lower.includes("auth-callback") && lower.includes("error="))
   );
 }
 
