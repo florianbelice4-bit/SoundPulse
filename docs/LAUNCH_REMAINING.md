@@ -81,21 +81,9 @@ Profile plan badge — for a real session, not just service_role.
 
 ## Redis-backed rate limits (Fix 17)
 
-In-memory limits reset on every Railway deploy. Move them to Redis so they
-persist. Safe because it degrades to memory when `REDIS_URL` is unset.
-
-1. Railway → add the Redis plugin (sets `REDIS_URL`).
-2. `cd railway/backend && npm i rate-limit-redis ioredis`
-3. In `middleware/userRateLimit.ts` + `globalIpRateLimit.ts`, pass a `store` when
-   `process.env.REDIS_URL` is set:
-   ```ts
-   import { RedisStore } from "rate-limit-redis";
-   import Redis from "ioredis";
-   const client = process.env.REDIS_URL ? new Redis(process.env.REDIS_URL) : null;
-   const store = client ? new RedisStore({ sendCommand: (...a) => client.call(...a) }) : undefined;
-   // rateLimit({ ..., store })
-   ```
-4. Deploy, redeploy, and confirm a near-limit counter survives the restart.
+**Implemented.** All limiters use a Redis store when `REDIS_URL` is set and fall
+back to in-memory otherwise. The only remaining step is provisioning Redis on
+Railway and setting `REDIS_URL`. See **`docs/REDIS_SETUP.md`**.
 
 ---
 
