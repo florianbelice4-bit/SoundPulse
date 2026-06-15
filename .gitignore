@@ -33,6 +33,14 @@ scripts/fetch-siren.mjs
 .DS_Store
 *.pem
 
+# Expo Updates code signing
+# Private keys must NEVER be committed (also caught by *.pem above).
+keys/
+*-private-key.pem
+.expo-updates-private-key*
+# The public certificate IS safe to commit — re-include it despite *.pem above.
+!certs/certificate.pem
+
 # local env files
 .env
 .env*.local
