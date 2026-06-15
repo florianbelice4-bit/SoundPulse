@@ -42,11 +42,12 @@ consoles are updated. The custom scheme `soundpulse://auth-callback` works today
    redirect URIs.
 5. Switch `AUTH_CALLBACK_URL` (src/features/auth/oauth.ts) and the backend
    `signupRedirectUrl()` default to the HTTPS URL. Ship.
-6. **(Fix 12)** Once all email links older than your token TTL have expired,
-   remove the legacy `soundpulse://auth/sign-in` handling
-   (`src/lib/appLinking.ts`, the `+native-intent.tsx` rewrite, and the
-   `isOAuthCallbackUrl` `auth/sign-in` branch) and drop it from Supabase Redirect
-   URLs. Doing this before step 5 breaks in-flight confirmation emails.
+6. **(Fix 12) — done in code.** The legacy `soundpulse://auth/sign-in` handling
+   has been removed (`+native-intent.tsx` deleted; the rewrite helpers in
+   `src/lib/appLinking.ts` and the `isOAuthCallbackUrl` `auth/sign-in` branch are
+   gone). Remaining manual step: remove `soundpulse://auth/sign-in` from
+   **Supabase → Auth → URL Configuration → Redirect URLs** (keep
+   `soundpulse://auth-callback`).
 
 ---
 
